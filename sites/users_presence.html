@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Mosquito Alert Coverage Map</title>
+  <link rel="shortcut icon" href="https://map.mosquitoalert.com/spa/icons/favicon.png" type="image/x-icon">
+
+  <!--Uber Font-->
+  <link rel="stylesheet" href="https://d1a3f4spazzrp4.cloudfront.net/kepler.gl/uber-fonts/4.0.0/superfine.css">
+
+  <!--MapBox css-->
+  <link href="https://api.tiles.mapbox.com/mapbox-gl-js/v1.1.1/mapbox-gl.css" rel="stylesheet">
+
+  <!-- Load React/Redux -->
+  <script src="https://unpkg.com/react@16.8.4/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@16.8.4/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/redux@3.7.2/dist/redux.js" crossorigin></script>
+  <script src="https://unpkg.com/react-redux@7.1.3/dist/react-redux.min.js" crossorigin></script>
+  <script src="https://unpkg.com/styled-components@4.1.3/dist/styled-components.min.js" crossorigin></script>
+
+  <!-- Load Kepler.gl -->
+  <script src="https://unpkg.com/kepler.gl@2.5.5/umd/keplergl.min.js" crossorigin></script>
+
+  <!-- Load spinner css-->
+  <link href="../static/css/spinner.css" rel="stylesheet">
+
+  <style type="text/css">
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+  </style>
+
+  <!--MapBox token-->
+  <script>
+    /**
+     * Provide your MapBox Token
+     **/
+    const MAPBOX_TOKEN = 'pk.eyJ1Ijoiam9obnJicGFsbWVyIiwiYSI6ImFRTXhoaHcifQ.UwIptK0Is5dJdN8q-1djww';  // Ask jpalmer.
+    const WARNING_MESSAGE = 'Please Provide a Mapbox Token in order to use Kepler.gl. Edit this file and fill out MAPBOX_TOKEN with your access key';
+  </script>
+</head>
+
+<body>
+  <!-- We will put our React component inside this div. -->
+  <div id="app">
+    <!-- Kepler.gl map will be placed here-->
+  </div>
+
+  <!-- Load our React component. -->
+  <script>
+    /* Validate Mapbox Token */
+    if ((MAPBOX_TOKEN || '') === '' || MAPBOX_TOKEN === 'PROVIDE_MAPBOX_TOKEN') {
+      alert(WARNING_MESSAGE);
+    }
+
+    /** STORE **/
+    const reducers = (function createReducers(redux, keplerGl) {
+      return redux.combineReducers({
+        // mount keplerGl reducer
+        keplerGl: keplerGl.keplerGlReducer.initialState({
+          uiState: {
+            readOnly: true,
+            //activeSidePanel: 'filter',
+            currentModal: null
+          },
+          "mapState": { "bearing": 0, "dragRotate": false, "latitude": 44.776167788162745, "longitude": 8.272701139202841, "pitch": 0, "zoom": 4.466423916211265, "isSplit": false }
+        })
+      });
+    }(Redux, KeplerGl));
+
+    const middleWares = (function createMiddlewares(keplerGl) {
+      return keplerGl.enhanceReduxMiddleware([
+        // Add other middlewares here
+      ]);
+    }(KeplerGl));
+
+    const enhancers = (function craeteEnhancers(redux, middles) {
+      return redux.applyMiddleware(...middles);
+    }(Redux, middleWares));
+
+    const store = (function createStore(redux, enhancers) {
+      const initialState = {};
+
+      return redux.createStore(
+        reducers,
+        initialState,
+        redux.compose(enhancers)
+      );
+    }(Redux, enhancers));
+    /** END STORE **/
+
+    /** COMPONENTS **/
+    var KeplerElement = (function makeKeplerElement(react, keplerGl, mapboxToken) {
+      var LogoPng = function LogoPng() {
+        return react.createElement(
+          "div",
+          { className: "logo-container", style: { position: 'fixed', zIndex: 10000, padding: '4px' } },
+          react.createElement(
+            "img",
+            {
+              className: "mosquito_alert__logo",
+              width: "140px",
+              src: "../static/mosquito_alert_logo_white.png",
+            }
+          )
+        );
+      };
+      return function App() {
+        var rootElm = react.useRef(null);
+        var _useState = react.useState({
+          width: window.innerWidth,
+          height: window.innerHeight
+        });
+        var windowDimension = _useState[0];
+        var setDimension = _useState[1];
+        react.useEffect(function sideEffect() {
+          function handleResize() {
+            setDimension({ width: window.innerWidth, height: window.innerHeight });
+          };
+          window.addEventListener('resize', handleResize);
+          return function () { window.removeEventListener('resize', handleResize); };
+        }, []);
+        return react.createElement(
+          'div',
+          { id: "container", className: "spinner", style: { position: 'absolute', left: 0, width: '100vw', height: '100vh' } },
+          LogoPng(),
+          react.createElement(keplerGl.KeplerGl, {
+            mapboxApiAccessToken: mapboxToken,
+            id: "map",
+            width: windowDimension.width,
+            height: windowDimension.height
+          })
+        )
+      }
+    }(React, KeplerGl, MAPBOX_TOKEN));
+
+    const app = (function createReactReduxProvider(react, reactRedux, KeplerElement) {
+      return react.createElement(
+        reactRedux.Provider,
+        { store },
+        react.createElement(KeplerElement, null)
+      )
+    }(React, ReactRedux, KeplerElement));
+    /** END COMPONENTS **/
+
+    /** Render **/
+    (function render(react, reactDOM, app) {
+      reactDOM.render(app, document.getElementById('app'));
+    }(React, ReactDOM, app));
+  </script>
+  <!-- The next script will show how to interact directly with Kepler map store -->
+  <script>
+    /**
+     * Customize map.
+     * In the following section you can use the store object to dispatch Kepler.gl actions
+     * to add new data and customize behavior
+     */
+    (function customize(keplerGl, store) {
+      // NOTE: When changing config, replace all dataId with "mosquito_alert_data"
+      const config = {
+        "version": "v1",
+        "config": {
+          "visState": {
+            "filters": [
+              {
+                "dataId": [
+                  "mosquito_alert_data"
+                ],
+                "id": "q2b0kfg9",
+                "name": [
+                  "datetime"
+                ],
+                "type": "timeRange",
+                "value": [
+                  1591001033000,
+                  1622407780000
+                ],
+                "enlarged": true,
+                "plotType": "histogram",
+                "animationWindow": "free",
+                "yAxis": null,
+                "speed": 3
+              }
+            ],
+            "layers": [
+              {
+                "id": "i9fl0hh",
+                "type": "hexagon",
+                "config": {
+                  "dataId": "mosquito_alert_data",
+                  "label": "Spread grid",
+                  "color": [
+                    246,
+                    209,
+                    138
+                  ],
+                  "highlightColor": [
+                    252,
+                    242,
+                    26,
+                    255
+                  ],
+                  "columns": {
+                    "lat": "masked_lat",
+                    "lng": "masked_lon"
+                  },
+                  "isVisible": true,
+                  "visConfig": {
+                    "opacity": 1,
+                    "worldUnitSize": 5.5,
+                    "resolution": 8,
+                    "colorRange": {
+                      "name": "Uber Viz Sequential 6",
+                      "type": "sequential",
+                      "category": "Uber",
+                      "colors": [
+                        "#0E7077",
+                        "#108188",
+                        "#00939C",
+                        "#4BA7AF",
+                        "#75BBC1",
+                        "#9DD0D4",
+                        "#C1E5E6",
+                        "#E6FAFA"
+                      ],
+                      "reversed": true
+                    },
+                    "coverage": 1,
+                    "sizeRange": [
+                      0,
+                      500
+                    ],
+                    "percentile": [
+                      "0",
+                      "100"
+                    ],
+                    "elevationPercentile": [
+                      0,
+                      100
+                    ],
+                    "elevationScale": "200",
+                    "enableElevationZoomFactor": false,
+                    "colorAggregation": "sum",
+                    "sizeAggregation": "sum",
+                    "enable3d": true
+                  },
+                  "hidden": false,
+                  "textLabel": [
+                    {
+                      "field": null,
+                      "color": [
+                        255,
+                        255,
+                        255
+                      ],
+                      "size": 18,
+                      "offset": [
+                        0,
+                        0
+                      ],
+                      "anchor": "start",
+                      "alignment": "center"
+                    }
+                  ]
+                },
+                "visualChannels": {
+                  "colorField": {
+                    "name": "count",
+                    "type": "integer"
+                  },
+                  "colorScale": "quantile",
+                  "sizeField": {
+                    "name": "count",
+                    "type": "integer"
+                  },
+                  "sizeScale": "linear"
+                }
+              }
+            ],
+            "interactionConfig": {
+              "tooltip": {
+                "fieldsToShow": {
+                  "mosquito_alert_data": [
+                    {
+                      "name": "datetime",
+                      "format": null
+                    },
+                    {
+                      "name": "count",
+                      "format": null
+                    }
+                  ]
+                },
+                "compareMode": false,
+                "compareType": "absolute",
+                "enabled": true
+              },
+              "brush": {
+                "size": 0.5,
+                "enabled": false
+              },
+              "geocoder": {
+                "enabled": false
+              },
+              "coordinate": {
+                "enabled": false
+              }
+            },
+            "layerBlending": "normal",
+            "splitMaps": [],
+            "animationConfig": {
+              "currentTime": null,
+              "speed": 1
+            }
+          },
+          "mapState": {
+            "bearing": 0,
+            "dragRotate": false,
+            "latitude": 38.09431264950756,
+            "longitude": 26.34352807785481,
+            "pitch": 0,
+            "zoom": 3.351019366289867,
+            "isSplit": false
+          },
+          "mapStyle": {
+            "styleType": "dark",
+            "topLayerGroups": {},
+            "visibleLayerGroups": {
+              "label": false,
+              "road": true,
+              "border": true,
+              "building": true,
+              "water": true,
+              "land": true,
+              "3d building": false
+            },
+            "threeDBuildingColor": [
+              9.665468314072013,
+              17.18305478057247,
+              31.1442867897876
+            ],
+            "mapStyles": {}
+          }
+        }
+      };
+      const data = fetch("https://webserver.mosquitoalert.com/static/geo_user_fixes.csv")
+        .then(response => response.text())
+        .then(data => keplerGl.processCsvData(data))
+        .then(
+          data => {
+            let datasets = [
+              {
+                "version": "v1",
+                "data": {
+                  "id": "mosquito_alert_data",
+                  "label": "Mosquito Alert Reports",
+                  "color": [143, 47, 191],
+                  "allData": data.rows,
+                  "fields": data.fields
+                }
+              }];
+            const loadedData = keplerGl.KeplerGlSchema.load(
+              datasets,
+              config
+            );
+
+            store.dispatch(keplerGl.addDataToMap({
+              datasets: loadedData.datasets,
+              config: loadedData.config,
+              options: {
+                centerMap: false,
+              }
+            }))
+          }
+        )
+        .catch(err => console.log(err))
+        .finally(() => {
+          document.getElementById("container").classList.remove('spinner');
+        })
+    }(KeplerGl, store))
+  </script>
+</body>
+
+</html>
